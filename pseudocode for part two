@@ -9,9 +9,6 @@
   file_path = 'data.xlsx'
   df = pd.read_excel(file_path)
 
-#Import necessary libraries
-  import pandas as pd
-
     #Filter the DataFrame into two groups: Cell A and Cell B
 
     cell_a_df = df[df['Cell_Type'] == 'Cell_A']
