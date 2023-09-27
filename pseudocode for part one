@@ -3,3 +3,31 @@
 #Other goal is to upload a image stack 
 #third goal is to pull only processing body data from an image stack 
 
+pip install pyimagej 
+#install OpenJDK and Maven manually
+
+#needed packages
+#Python >= 3.7
+#imglyb >= 2.0.1
+#jgo >= 1.0.3
+#JPype >= 1.3.0
+#labeling >= 0.1.12
+#matplotlib (optional, for ij.py.show function only)
+#NumPy
+#scyjava >= 1.8.0
+#xarray
+
+# Create an ImageJ2 gateway with the newest available version of ImageJ2.
+import imagej
+ij = imagej.init()
+
+# Load an image
+image_url = 'https://imagej.net/images/clown.jpg'
+jimage = ij.io().open(image_url)
+
+# Convert the image from ImageJ2 to xarray, a package that adds
+# labeled datasets to numpy (http://xarray.pydata.org/en/stable/).
+image = ij.py.from_java(jimage)
+
+# Display the image (backed by matplotlib).
+ij.py.show(image, cmap='gray')
