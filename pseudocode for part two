@@ -1,0 +1,62 @@
+###PART TWO###
+#the goal is to input excel file data and sort processing body measurements by size and by number of spots, make plots
+
+#Import libraries
+ import pandas as pd
+ import matplotlib.pyplot as plt
+
+#Import excel file
+  file_path = 'data.xlsx'
+  df = pd.read_excel(file_path)
+
+#Import necessary libraries
+  import pandas as pd
+
+    #Filter the DataFrame into two groups: Cell A and Cell B
+
+    cell_a_df = df[df['Cell_Type'] == 'Cell_A']
+    cell_b_df = df[df['Cell_Type'] == 'Cell_B']
+    
+    #Define a function to categorize the number of spots 0-5 (low), 6-15(mid), >15(high) 
+
+    def categorize_spots(num_spots):
+        if num_spots <= 5:
+            return 'low'
+        elif 6 <= num_spots <= 15:
+            return 'mid'
+        else:
+            return 'high'
+    
+    #Define a function to categorize the spot area
+    def categorize_area(spot_area):
+        if 0 <= spot_area < 0.1:
+            return '0-0.1'
+        elif 0.1 <= spot_area < 0.2:
+            return '0.1-0.2'
+        elif 0.2 <= spot_area < 0.3:
+            return '0.2-0.3'
+        elif 0.3 <= spot_area < 0.4:
+            return '0.3-0.4'
+        elif 0.4 <= spot_area < 0.5:
+            return '0.4-0.5'
+        else:
+            return '0.5+'
+    
+    #Apply the categorization functions to create new columns in each group
+    cell_a_df['Spot Category'] = cell_a_df['Number of Spots'].apply(categorize_spots)
+    cell_a_df['Area Category'] = cell_a_df['Cell Area'].apply(categorize_area)
+    
+    cell_b_df['Spot Category'] = cell_b_df['Number of Spots'].apply(categorize_spots)
+    cell_b_df['Area Category'] = cell_b_df['Cell Area'].apply(categorize_area)
+
+    #Print the sorted and categorized DataFrames for Cell A and Cell B
+    print(cell_a_df)
+    print(cell_b_df)
+
+#Make a plot to visualize cells
+   0-5 (low), 6-15(mid), >15(high)  cell A vs cell B
+   areas cell A vs cell B
+
+  fig.savefig(“pbody.png”)
+
+  
