@@ -1,3 +1,3 @@
 # project
 ### make a pretty readme
-    add description
+    add project description
