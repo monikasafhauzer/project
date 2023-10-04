@@ -17,5 +17,9 @@
     
 [processing bodies](https://pubs.acs.org/doi/10.1021/acs.biochem.7b01162)
 
+***read more bellow***
+[acrticle1](https://www.frontiersin.org/articles/10.3389/fendo.2022.895528/full)
+[acrticle2](https://www.mdpi.com/2073-4409/9/3/745)
+
 ### How to run
 update how to run
