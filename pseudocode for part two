@@ -4,6 +4,7 @@
 #Import libraries
  import pandas as pd
  import matplotlib.pyplot as plt
+ import numpy as np
 
 #Import excel file
   file_path = 'data.xlsx'
