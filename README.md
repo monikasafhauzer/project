@@ -11,3 +11,5 @@
     project aims to describe the translational represion differences between these two cell types by 
     analysing their processing bodies. Processing bodies are RNP granules that are indicators of 
     translationally represed mRNAs that are "trapped" within the cytoplasm.  
+### How to run
+update how to run
