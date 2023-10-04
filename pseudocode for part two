@@ -10,6 +10,12 @@
   file_path = 'data.xlsx'
   df = pd.read_excel(file_path)
 
+Import csv
+with open('test_data.csv', mode='r') as file:
+    csv_reader = csv.reader(file)
+    for row in csv_reader:
+    print(row)
+
     #Filter the DataFrame into two groups: Cell A and Cell B
 
     cell_a_df = df[df['Cell_Type'] == 'Cell_A']
