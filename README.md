@@ -5,7 +5,7 @@
     to get quick statistical results and plots.
 ### Project background
     Spermatogonial stem cells are cells that retain their ability to differenciate 
-    and this can be tracked by a unique marker called cKIT.
+    and this can be tracked by a unique marker called cKIT. `https://en.wikipedia.org/wiki/KIT_(gene)`
     
  [cKIT](https://en.wikipedia.org/wiki/KIT_(gene))
  
