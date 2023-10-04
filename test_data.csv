@@ -1,4 +1,17 @@
-Cell_Type num_spots spot_area
-1 2 3 
-1 2 3 
+Cell_Type	num_spots	spot_area
+Cell_A	1	0.1
+Cell_B	2	0.2
+Cell_A	16	0.1
+Cell_A	25	0.2
+Cell_A	3	0.3
+Cell_A	8	0.4
+Cell_A	8	0.7
+Cell_B	3	0.1
+Cell_B	4	0.7
+Cell_B	9	0.7
+Cell_B	10	0.7
+Cell_B	35	0.7
+Cell_B	35	0.7
+
+
 
