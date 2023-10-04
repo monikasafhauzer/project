@@ -15,7 +15,7 @@
     analysing their processing bodies. Processing bodies are RNP granules that are indicators of 
     translationally represed mRNAs that are "trapped" within the cytoplasm.  
     
-[processing bodies] (https://pubs.acs.org/doi/10.1021/acs.biochem.7b01162)
+[processing bodies](https://pubs.acs.org/doi/10.1021/acs.biochem.7b01162)
 
 ### How to run
 update how to run
