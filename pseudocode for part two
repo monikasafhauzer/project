@@ -2,16 +2,15 @@
 #the goal is to input excel file data and sort processing body measurements by size and by number of spots, make plots
 
 #Import libraries
-
- import pandas as pd
- import matplotlib.pyplot as plt
- import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
 
 Import csv
 with open('test_data.csv', mode='r') as file:
     csv_reader = csv.reader(file)
     for row in csv_reader:
-    print(row)
+        print(row)
 
 #Filter the DataFrame into two groups: Cell A and Cell B
 
@@ -82,7 +81,6 @@ plt.xticks([i + 0.2 for i in x], categories)
 
 plt.legend()
 plt.show()
-
-  fig.savefig(“pbody.png”)
+fig.savefig(“pbody.png”)
 
   
