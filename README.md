@@ -22,4 +22,18 @@
 [article2](https://www.mdpi.com/2073-4409/9/3/745)
 
 # How to run
-update how to run
+#Make sure you have Git and Conda installed before following these steps
+1. Clone the git repository
+    git clone <repository_url>
+2. Navigate the directory
+    cd project-directory
+3. Create a Conda environment(if it does not already exist)
+    conda create -n myenv python=3.8
+4. Activate Conda environment
+    conda activate myenv
+5. Install `requirements.txt` file with pip
+    pip install -r requirements.txt
+6. Run the code using Python
+    python code.py
+7.You should have an output.csv file as your final result
+
