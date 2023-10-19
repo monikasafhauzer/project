@@ -1,5 +1,5 @@
 ###PART TWO###
-#the goal is to input excel file data and sort processing body measurements by size and by number of spots, make plots
+#the goal is to input a csv file and sort processing body measurements by size and by number of spots, make plots
 
 import pandas as pd
 import matplotlib.pyplot as plt
