@@ -24,8 +24,8 @@
 # How to run
 Make sure you have Git and Conda installed before following these steps
 
-1. Clone the git repository
-    git clone <repository_url>
+1. Clone the git repository 
+    git clone https://github.com/monikasafhauzer/project.git
 2. Navigate the directory
     cd project-directory
 3. Create a Conda environment(if it does not already exist)
