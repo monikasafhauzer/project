@@ -24,18 +24,18 @@
 # How to run
 Make sure you have Git and Conda installed before following these steps
 
-1. Clone the git repository
+## Clone the git repository
     git clone https://github.com/monikasafhauzer/project.git
-3. Navigate the directory
+## Navigate the directory
     cd project-directory
-4. Create a Conda environment(if it does not already exist)
+## Create a Conda environment(if it does not already exist)
     conda create -n myenv python=3.8
-5. Activate Conda environment
+## Activate Conda environment
     conda activate myenv
-6. Install `requirements.txt` file with pip
+## Install `requirements.txt` file with pip
     pip install -r requirements.txt
-7. Run the code using Python
+## Run the code using Python
     python code.py
    
-7.You should have an output.csv file as your final result
+## You should have an output.csv file as your final result
 
