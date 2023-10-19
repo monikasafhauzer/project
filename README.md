@@ -26,8 +26,9 @@ Make sure you have Git and Conda installed before following these steps
 
 ## Clone the git repository
     git clone https://github.com/monikasafhauzer/project.git
-## Navigate the directory
+## Navigate the directory/list all your files
     cd project-directory
+    ls-a
 ## Create a Conda environment(if it does not already exist)
     conda create -n myenv python=3.8
 ## Activate Conda environment
