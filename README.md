@@ -22,7 +22,8 @@
 [article2](https://www.mdpi.com/2073-4409/9/3/745)
 
 # How to run
-#Make sure you have Git and Conda installed before following these steps
+Make sure you have Git and Conda installed before following these steps
+
 1. Clone the git repository
     git clone <repository_url>
 2. Navigate the directory
@@ -35,5 +36,6 @@
     pip install -r requirements.txt
 6. Run the code using Python
     python code.py
+   
 7.You should have an output.csv file as your final result
 
