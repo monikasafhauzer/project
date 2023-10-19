@@ -1,86 +1,68 @@
 ###PART TWO###
 #the goal is to input excel file data and sort processing body measurements by size and by number of spots, make plots
 
-#Import libraries
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import csv
 
-Import csv
-with open('test_data.csv', mode='r') as file:
-    csv_reader = csv.reader(file)
-    for row in csv_reader:
-        print(row)
+def process_data(input_file, output_file):
+    # Read the input file, and open the output file for writing
+    with open(input_file, 'r') as infile, open(output_file, 'w', newline='') as outfile:
+        # Create a CSV reader
+        reader = csv.DictReader(infile)
 
-#Filter the DataFrame into two groups: Cell A and Cell B
+        # Create a CSV writer for the output file
+        fieldnames = reader.fieldnames  # Get the field names from the input file
+        writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+        writer.writeheader()  # Write the header row
 
-    cell_a_df = df[df['Cell_Type'] == 'Cell_A']
-    cell_b_df = df[df['Cell_Type'] == 'Cell_B']
-    
-#Define a function to categorize the number of spots 0-5 (low), 6-15(mid), >15(high) 
+        # Process and write data
+        for row in reader:
+            # Here you can add your data processing logic
+            # For example, you can modify the row or skip it based on certain conditions
+            # Then, write the modified row to the output file
+            writer.writerow(row)
 
-    def categorize_spots(num_spots):
-        if num_spots <= 5:
-            return 'low'
-        elif 6 <= num_spots <= 15:
-            return 'mid'
-        else:
-            return 'high'
-    
-#Define a function to categorize the spot area
+        #Filter the DataFrame into two groups: Cell A and Cell B
+        cell_a_df = df[df['Cell_Type'] == 'Cell_A']
+        cell_b_df = df[df['Cell_Type'] == 'Cell_B']
 
-    def categorize_area(spot_area):
-        if 0 <= spot_area < 0.1:
-            return '0-0.1'
-        elif 0.1 <= spot_area < 0.2:
-            return '0.1-0.2'
-        elif 0.2 <= spot_area < 0.3:
-            return '0.2-0.3'
-        elif 0.3 <= spot_area < 0.4:
-            return '0.3-0.4'
-        elif 0.4 <= spot_area < 0.5:
-            return '0.4-0.5'
-        else:
-            return '0.5+'
-    
-#Apply the categorization functions to create new columns in each group
+        #Define a function to categorize the number of spots 0-5 (low), 6-15(mid), >15(high) 
+        def categorize_spots(num_spots):
+            if num_spots <= 5:
+                return 'low'
+            elif 6 <= num_spots <= 15:
+                return 'mid'
+            else:
+                return 'high'
 
-    cell_a_df['Spot Category'] = cell_a_df['Number of Spots'].apply(categorize_spots)
-    cell_a_df['Area Category'] = cell_a_df['Cell Area'].apply(categorize_area)
-    
-    cell_b_df['Spot Category'] = cell_b_df['Number of Spots'].apply(categorize_spots)
-    cell_b_df['Area Category'] = cell_b_df['Cell Area'].apply(categorize_area)
+        #Define a function to categorize the spot area
+        def categorize_area(spot_area):
+            if 0 <= spot_area < 0.1:
+                return '0-0.1'
+            elif 0.1 <= spot_area < 0.2:
+                return '0.1-0.2'
+            elif 0.2 <= spot_area < 0.3:
+                return '0.2-0.3'
+            elif 0.3 <= spot_area < 0.4:
+                return '0.3-0.4'
+            elif 0.4 <= spot_area < 0.5:
+                return '0.4-0.5'
+            else:
+                return '0.5+'
 
-    #Print the sorted and categorized DataFrames for Cell A and Cell B
-    print(cell_a_df)
-    print(cell_b_df)
+        #Apply the categorization functions to create new columns in each group
+        cell_a_df['Spot Category'] = cell_a_df['Number of Spots'].apply(categorize_spots)
+        cell_a_df['Area Category'] = cell_a_df['Cell Area'].apply(categorize_area)
+        cell_b_df['Spot Category'] = cell_b_df['Number of Spots'].apply(categorize_spots)
+        cell_b_df['Area Category'] = cell_b_df['Cell Area'].apply(categorize_area)
 
+        #Print the sorted and categorized DataFrames for Cell A and Cell B
+        print(cell_a_df)
+        print(cell_b_df)
 
-#Make a plot to visualize cells
-#0-5 (low), 6-15(mid), >15(high)  cell A vs cell B
-#areas cell A vs cell B
-
-plt.figure(figsize=(10, 6))
-
-#Group by 'Spot Category' 
-cell_a_spot_counts = cell_a_df['Spot Category'].value_counts()
-cell_b_spot_counts = cell_b_df['Spot Category'].value_counts()
-
-#Define the categories 
-categories = ['low', 'mid', 'high']
-
-x = range(len(categories))
-plt.bar(x, cell_a_spot_counts[categories], width=0.4, label='Cell A')
-plt.bar([i + 0.4 for i in x], cell_b_spot_counts[categories], width=0.4, label='Cell B')
-
-#Add labels to the plot
-plt.xlabel('Spot Category')
-plt.ylabel('Count')
-plt.title('Spot Number Comparison between Cell A and Cell B')
-plt.xticks([i + 0.2 for i in x], categories)
-
-plt.legend()
-plt.show()
-fig.savefig(“pbody.png”)
-
-  
+if __name__ == "__main__":
+    input_file = 'test_data.csv'
+    output_file = 'output.csv'
+    process_data(input_file, output_file)
