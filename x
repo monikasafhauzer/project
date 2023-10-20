@@ -41,14 +41,14 @@ process_data(input_file, output_file)
 data = pd.read_csv('output.csv')
 
 # Sort data for Cells A and B by num_spots
-cell_a_data = data[data['Cell'] == 'Cell A'].sort_values('num_spots')
-cell_b_data = data[data['Cell'] == 'Cell B'].sort_values('num_spots')
+cell_a_data = data[data['Cell_Type'] == 'Cell_A'].sort_values('num_spots')
+cell_b_data = data[data['Cell_Type'] == 'Cell_B'].sort_values('num_spots')
 
 # Create a bar plot for num_spots
 plt.figure(figsize=(10, 6))
 
-plt.bar(cell_a_data['Cell'], cell_a_data['num_spots'], label='Cell A')
-plt.bar(cell_b_data['Cell'], cell_b_data['num_spots'], label='Cell B')
+plt.bar(cell_a_data['Cell_Type'], cell_a_data['num_spots'], label='Cell A')
+plt.bar(cell_b_data['Cell_Type'], cell_b_data['num_spots'], label='Cell B')
 
 plt.xlabel('Cell')
 plt.ylabel('num_spots')
@@ -57,8 +57,8 @@ plt.legend()
 plt.show()
 
 # Sort data for Cells A and B by spot_area
-cell_a_data = data[data['Cell'] == 'Cell A'].sort_values('spot_area')
-cell_b_data = data[data['Cell'] == 'Cell B'].sort_values('spot_area')
+cell_a_data = data[data['Cell_Type'] == 'Cell_A'].sort_values('spot_area')
+cell_b_data = data[data['Cell_Type'] == 'Cell_B'].sort_values('spot_area')
 
 # Create a bar plot for spot_area
 plt.figure(figsize=(10, 6))
