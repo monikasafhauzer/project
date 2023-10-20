@@ -38,5 +38,5 @@ Make sure you have Git and Conda installed before following these steps
 ## Run the code using Python
     python code.py
    
-## You should have an output.csv file as your final result
+## You should have an output.csv and pbody.png file as your final result
 
