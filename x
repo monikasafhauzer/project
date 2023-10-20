@@ -37,28 +37,37 @@ input_file = 'test_data.csv'
 output_file = 'output.csv'
 process_data(input_file, output_file)
 
-# Create a plot using the processed data
-df = pd.read_csv(output_file)
+# Load the processed data from the output file
+data = pd.read_csv('output.csv')
+
+# Sort data for Cells A and B by num_spots
+cell_a_data = data[data['Cell'] == 'Cell A'].sort_values('num_spots')
+cell_b_data = data[data['Cell'] == 'Cell B'].sort_values('num_spots')
+
+# Create a bar plot for num_spots
 plt.figure(figsize=(10, 6))
 
-cell_a_spot_counts = df[df['Cell'] == 'Cell A']['Spot Category'].value_counts()
-cell_b_spot_counts = df[df['Cell'] == 'Cell B']['Spot Category'].value_counts()
+plt.bar(cell_a_data['Cell'], cell_a_data['num_spots'], label='Cell A')
+plt.bar(cell_b_data['Cell'], cell_b_data['num_spots'], label='Cell B')
 
-categories = ['low', 'mid', 'high']
-
-x = range(len(categories))
-plt.bar(x, cell_a_spot_counts[categories], width=0.4, label='Cell A')
-plt.bar([i + 0.4 for i in x], cell_b_spot_counts[categories], width=0.4, label='Cell B')
-
-plt.xlabel('Spot Category')
-plt.ylabel('Count')
-plt.title('Spot Number Comparison between Cell A and Cell B')
-plt.xticks([i + 0.2 for i in x], categories)
-
+plt.xlabel('Cell')
+plt.ylabel('num_spots')
+plt.title('Comparison of Cells A and B by num_spots')
 plt.legend()
+plt.show()
 
-# Save the plot as a PNG file
-plt.savefig("pbody.png")
+# Sort data for Cells A and B by spot_area
+cell_a_data = data[data['Cell'] == 'Cell A'].sort_values('spot_area')
+cell_b_data = data[data['Cell'] == 'Cell B'].sort_values('spot_area')
 
-# Display the plot
+# Create a bar plot for spot_area
+plt.figure(figsize=(10, 6))
+
+plt.bar(cell_a_data['Cell'], cell_a_data['spot_area'], label='Cell A')
+plt.bar(cell_b_data['Cell'], cell_b_data['spot_area'], label='Cell B')
+
+plt.xlabel('Cell')
+plt.ylabel('spot_area')
+plt.title('Comparison of Cells A and B by spot_area')
+plt.legend()
 plt.show()
