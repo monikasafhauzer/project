@@ -1,6 +1,9 @@
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import csv
 
+# Define the data processing functions
 def categorize_spots(num_spots):
     if num_spots <= 5:
         return 'low'
@@ -24,25 +27,49 @@ def categorize_area(spot_area):
         return '0.5+'
 
 def process_data(input_file, output_file):
-    with open(input_file, 'r') as infile, open(output_file, 'w', newline='') as outfile:
-        reader = csv.DictReader(infile)
-        fieldnames = reader.fieldnames
+    df = pd.read_csv(input_file)
+    df['Spot Category'] = df['num_spots'].apply(categorize_spots)
+    df['Area Category'] = df['spot_area'].apply(categorize_area)
+    df.to_csv(output_file, index=False)
 
-        fieldnames.extend(['Spot Category', 'Area Category'])
+# Process the data
+input_file = 'test_data.csv'
+output_file = 'output.csv'
+process_data(input_file, output_file)
 
-        # Create a CSV writer for the output file
-        writer = csv.DictWriter(outfile, fieldnames=fieldnames)
-        writer.writeheader()
+# Load the processed data from the output file
+data = pd.read_csv('output.csv')
 
-        for row in reader:
-            num_spots = int(row['num_spots'])
-            spot_area = float(row['spot_area'])
-            row['Spot Category'] = categorize_spots(num_spots)
-            row['Area Category'] = categorize_area(spot_area)
-            writer.writerow(row)
+# Sort data for Cells A and B by num_spots
+cell_a_data = data[data['Cell_Type'] == 'Cell_A'].sort_values('num_spots')
+cell_b_data = data[data['Cell_Type'] == 'Cell_B'].sort_values('num_spots')
 
-if __name__ == "__main__":
-    input_file = 'test_data.csv'
-    output_file = 'output.csv'
-    process_data(input_file, output_file)
+# Create a bar plot for num_spots
+plt.figure(figsize=(10, 6))
 
+plt.bar(cell_a_data['Cell_Type'], cell_a_data['num_spots'], label='Cell A')
+plt.bar(cell_b_data['Cell_Type'], cell_b_data['num_spots'], label='Cell B')
+
+plt.xlabel('Cell')
+plt.ylabel('num_spots')
+plt.title('Comparison of Cells A and B by num_spots')
+plt.legend()
+plt.show()
+
+# Sort data for Cells A and B by spot_area
+cell_a_data = data[data['Cell_Type'] == 'Cell_A'].sort_values('spot_area')
+cell_b_data = data[data['Cell_Type'] == 'Cell_B'].sort_values('spot_area')
+
+# Create a bar plot for spot_area
+plt.figure(figsize=(10, 6))
+
+plt.bar(cell_a_data['Cell'], cell_a_data['spot_area'], label='Cell A')
+plt.bar(cell_b_data['Cell'], cell_b_data['spot_area'], label='Cell B')
+
+plt.xlabel('Cell')
+plt.ylabel('spot_area')
+plt.title('Comparison of Cells A and B by spot_area')
+plt.legend()
+plt.show()
+
+fig.savefig(“pbody.png”)
