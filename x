@@ -71,3 +71,5 @@ plt.ylabel('spot_area')
 plt.title('Comparison of Cells A and B by spot_area')
 plt.legend()
 plt.show()
+
+fig.savefig(“pbody.png”)
