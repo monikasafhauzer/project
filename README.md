@@ -35,6 +35,18 @@ export PATH=/workspace/.onboarding/nanopore-tools/bin:$PATH
 /workspace/.onboarding/nanopore-venv/bin/python -m streamlit run app.py --server.headless true
 ```
 
+## Large files and one-file-at-a-time processing
+
+For multi-GB `.fastq.gz` files, select **Read large files from this computer** instead of browser uploads. Paste each full path in the relevant sample box, one path per line. You can supply only Sample 1 to process one file, or supply all three: samples and files are processed sequentially. Windows paths (`C:\Users\Name\Desktop\reads.fastq.gz`) are converted to `/mnt/c/...` automatically under Ubuntu/WSL. The paths refer to the machine running Streamlit, so this mode is intended for trusted local use.
+
+Leave gzip files compressed. Records are read one at a time with Biopython. Filtering, statistics and primer extraction stream to disk. Reference matching uses batches of at most 1,000 reads or roughly 5 million bases (a single unusually long read can exceed the base target); batches are never loaded together. Counts are aggregated across all batches before percentages are calculated. Unique read IDs persist across multiple files in a sample. No downsampling is applied.
+
+Discovery writes extracted sequences to disk, then runs VSEARCH for **one sample at a time**. VSEARCH still loads that sample's extracted sequences into native memory; this is not a fully disk-backed clustering algorithm. Very large or diverse samples can still exceed available RAM or take hours. Windows installed RAM is not necessarily the WSL memory limit. This workflow was validated on synthetic inputs, not the user's multi-GB datasets.
+
+Each run creates a new folder under the selected report directory (default `~/nanopore-results`). Results include complete per-read statistics/primer or alignment CSVs and complete cluster CSV/FASTA reports. Charts use weighted length/Q histograms (all reads, no sampling); Q bins are rounded to 0.1. To keep the browser responsive, discovery previews and their downloadable tables/FASTA contain at most the first 500 clusters per sample. Full results remain on disk. Across-sample plots in this mode cover only those preview clusters. The **Open report folder in Windows Explorer** button opens the complete report directory when running under WSL. Disk space is needed for extracted FASTA, native clustering intermediates and CSV reports; gzip compression ratios vary. Temporary extracted sequences are removed after successful sample analysis.
+
+Progress reports show examined/retained reads every 10,000 records and elapsed VSEARCH time. Runs with errors are marked `INCOMPLETE`; their partial reports must not be treated as finished results. Successful runs have a `COMPLETE` marker. Reruns preserve earlier outputs in separate folders. Local-file provenance records file paths, sizes and modification times rather than hashing entire multi-GB files; upload-mode provenance includes SHA-256 hashes.
+
 ## A molecular biologist's workflow
 
 1. Upload FASTQ, FASTQ.gz or FASTA files into Sample 1, 2 and 3. Multiple files for one sample are pooled only within that sample. At least one sample is required. FASTA.gz, .fq, .fa and .fna are also supported. **POD5 files must first be basecalled with Dorado**; this app does not run basecalling.
@@ -71,7 +83,7 @@ Minimap2 uses `-x map-ont -c --secondary=yes -p 0`, with enough secondary slots 
 
 ## Resources, privacy and limitations
 
-This app processes files in the local Python process. VSEARCH/minimap2 use private temporary directories, removed after analysis. Input sequences and results stay in Streamlit session memory; CSV/FASTA downloads are user initiated. Remote users of a shared Streamlit instance send their files to its server: deploy only on a trusted machine. Uploaded files are limited by Streamlit's default 200 MB per file; configure `server.maxUploadSize` deliberately if needed. Parsing and tables are memory-based, not a production streaming pipeline. Large datasets should be filtered/subsampled first. Native tools use at most four CPU threads and a 15-minute command timeout. Very permissive primer edits or long reads can be expensive. File SHA-256 hashes, settings, reference DNA and native tool versions are included in downloadable provenance; original sequence identifiers are replaced with unique per-sample read IDs, and source filenames are in the read-length CSV.
+This app processes files in the local Python process. VSEARCH/minimap2 use private temporary directories, removed after analysis. Input sequences and results stay in Streamlit session memory; CSV/FASTA downloads are user initiated. Remote users of a shared Streamlit instance send their files to its server: deploy only on a trusted machine. Uploaded files are limited by Streamlit's default 200 MB per file; configure `server.maxUploadSize` deliberately if needed. Browser-upload mode is memory-based and is intended for small datasets. Use local-file mode above for large datasets; native VSEARCH clustering still depends on available memory. Native tools use at most four CPU threads. Upload-mode commands and individual local reference-mapping batches have a 15-minute timeout; local VSEARCH clustering has no fixed timeout. Very permissive primer edits or long reads can be expensive. File SHA-256 hashes, settings, reference DNA and native tool versions are included in downloadable provenance; original sequence identifiers are replaced with unique per-sample read IDs, and source filenames are in the read-length CSV.
 
 ## Development and validation
 

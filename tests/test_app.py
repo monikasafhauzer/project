@@ -7,7 +7,7 @@ def test_app_initial_and_validation():
     assert app.title[0].value=='Nanopore 5′ RACE Amplicon Analyzer'
     app.button[0].click().run()
     assert 'at least one sample' in app.error[0].value
-    app.radio[0].set_value('Reference matching').run()
+    app.radio(key='analysis_mode').set_value('Reference matching').run()
     assert not app.exception
     assert app.text_area[0].label == 'Or paste FASTA / a single DNA sequence'
 
@@ -32,3 +32,28 @@ def test_result_rendering_for_both_modes():
         app.run(timeout=30)
         assert not app.exception
         assert len(app.dataframe)>=2
+
+
+def test_local_file_mode_runs_and_renders(tmp_path):
+    from pathlib import Path
+    from test_local import write_fastq,settings
+    from test_analysis import random_dna
+    from nanopore.io import reverse_complement
+    cfg=settings()
+    seq=cfg['anchor']+random_dna(500,12)+reverse_complement(cfg['gene'])
+    path=tmp_path/'reads.fastq.gz';write_fastq(path,[seq,seq])
+    app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=30)
+    app.radio(key='input_mode').set_value('Read large files from this computer').run()
+    assert not app.exception
+    app.text_area(key='paths_1').set_value(str(path))
+    for widget in app.text_input:
+        if 'Folder to save' in widget.label: widget.set_value(str(tmp_path/'results'))
+        elif 'anchor primer' in widget.label: widget.set_value(cfg['anchor'])
+        elif 'Gene-specific' in widget.label: widget.set_value(cfg['gene'])
+    app.button[0].click().run(timeout=30)
+    assert not app.exception
+    assert not app.error
+    result,metadata=app.session_state['analysis']
+    assert result['stats'].input_reads.tolist()==[2]
+    assert metadata['local_files']
+    assert len(app.dataframe)>=2

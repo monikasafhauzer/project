@@ -6,6 +6,8 @@ import plotly.express as px
 from nanopore.io import dna, load_reads, references, fasta
 from nanopore.pipeline import analyze
 from nanopore.tools import dependencies
+from nanopore.local import analyze_local, local_path
+from pathlib import Path
 
 st.set_page_config(page_title='Nanopore 5′ RACE Amplicon Analyzer', page_icon='🧬', layout='wide')
 st.title('Nanopore 5′ RACE Amplicon Analyzer')
@@ -22,7 +24,7 @@ with st.expander('Before you begin · formats, primers and interpretation'):
 
 with st.sidebar:
     st.header('Analysis settings')
-    mode=st.radio('Analysis mode',['Amplicon discovery','Reference matching'])
+    mode=st.radio('Analysis mode',['Amplicon discovery','Reference matching'],key='analysis_mode')
     min_quality=st.number_input('Minimum read Q score',0.0,60.0,7.0,.5,help='Mean read Q calculated from the mean base error probability.')
     min_length=st.number_input('Minimum read length (bp)',1,10000000,100)
     max_length=st.number_input('Maximum read length (bp)',1,10000000,20000)
@@ -42,12 +44,23 @@ with st.sidebar:
         st.caption('Install missing tools on your computer and restart Streamlit. See README for commands.')
 
 st.subheader('1. Add sample files')
+input_mode=st.radio('How to open reads', ['Upload small files', 'Read large files from this computer'],key='input_mode')
+local_mode=input_mode=='Read large files from this computer'
+if local_mode:
+    st.info('No browser upload needed. Paste a full file path for each sample; one path per line. Files and samples are processed sequentially. Windows paths such as C:\\Users\\YourName\\Desktop\\reads.fastq.gz are accepted in Ubuntu/WSL. Leave unused samples empty.')
+    st.caption('Keep .fastq.gz files compressed. VSEARCH still needs RAM for extracted amplicons from one sample; large or diverse samples may require substantial memory and time. Ubuntu/WSL may have a lower memory limit than your Windows installed RAM.')
+    output_root=st.text_input('Folder to save complete reports',value=str(Path.home()/'nanopore-results'),help='Each run creates a separate folder. Reports remain on disk rather than being loaded into the browser.')
 columns=st.columns(3)
 uploads={}
+local_samples={}
 for i,col in enumerate(columns,1):
     with col:
         st.markdown(f'**Sample {i}**')
-        uploads[f'Sample_{i}']=st.file_uploader('Sequencing files',type=['fastq','fq','gz','fasta','fa','fna'],accept_multiple_files=True,key=f'files_{i}')
+        if local_mode:
+            paths=st.text_area('Full file paths (one per line)',key=f'paths_{i}',placeholder='C:\\Users\\YourName\\Desktop\\reads.fastq.gz')
+            local_samples[f'Sample_{i}']=[local_path(line) for line in paths.splitlines() if line.strip()]
+        else:
+            uploads[f'Sample_{i}']=st.file_uploader('Sequencing files',type=['fastq','fq','gz','fasta','fa','fna'],accept_multiple_files=True,key=f'files_{i}')
 st.caption('You can start with one sample; add all three for comparison. Files are processed in this local Streamlit process, never uploaded to an external analysis service. Larger datasets need more memory; prefilter or subsample externally if necessary.')
 
 anchor=gene=''; ref_text=''
@@ -69,7 +82,7 @@ else: settings.update(reference_identity=reference_identity,reference_coverage=r
 if st.button('Analyze samples',type='primary'):
     try:
         if min_length>max_length: raise ValueError('Minimum read length must not exceed maximum read length.')
-        if not any(uploads.values()): raise ValueError('Add sequencing files to at least one sample.')
+        if not any((local_samples if local_mode else uploads).values()): raise ValueError('Add sequencing files to at least one sample.')
         needed='vsearch' if mode=='Amplicon discovery' else 'minimap2'
         if status[needed].startswith(('Missing','Unable')): raise ValueError(f'{needed} is unavailable. Install it using the README instructions.')
         refs={}
@@ -86,9 +99,17 @@ if st.button('Analyze samples',type='primary'):
                 refs.update(file_refs)
             if not refs: raise ValueError('Provide at least one reference sequence.')
         with st.status('Running analysis…',expanded=True) as task:
-            samples={name:load_reads(files,name) for name,files in uploads.items() if files}
-            results=analyze(samples,settings,refs,task.write)
-            metadata=dict(settings=settings,tools=status,files={name:[dict(name=f.name,sha256=hashlib.sha256(f.getvalue()).hexdigest()) for f in files] for name,files in uploads.items() if files},references=refs)
+            if local_mode:
+                if not output_root.strip(): raise ValueError('Choose a report output folder.')
+                selected={name:paths for name,paths in local_samples.items() if paths}
+                results,report_metadata=analyze_local(selected,settings,refs,local_path(output_root),lambda message: task.update(label=message))
+                metadata=dict(settings=settings,tools=status,references=refs,**report_metadata,
+                    files={name:[dict(name=str(path),size_bytes=path.stat().st_size,modified_ns=path.stat().st_mtime_ns) for path in paths] for name,paths in selected.items()})
+                Path(metadata['report_directory'],'analysis_settings.json').write_text(json.dumps(metadata,indent=2))
+            else:
+                samples={name:load_reads(files,name) for name,files in uploads.items() if files}
+                results=analyze(samples,settings,refs,task.write)
+                metadata=dict(settings=settings,tools=status,files={name:[dict(name=f.name,sha256=hashlib.sha256(f.getvalue()).hexdigest()) for f in files] for name,files in uploads.items() if files},references=refs)
             st.session_state['analysis']=(results,metadata)
             task.update(label='Analysis completed',state='complete',expanded=False)
     except Exception as exc:
@@ -101,11 +122,23 @@ if 'analysis' in st.session_state:
     st.caption(f"Saved result snapshot · {metadata['settings']['mode']}. Changing inputs or settings requires clicking Analyze samples again.")
     st.dataframe(result['stats'],hide_index=True,use_container_width=True)
     if result['stats']['quality_filtered_reads'].sum()==0: st.warning('No reads passed filtering. Review length and Q thresholds; FASTA quality is unknown.')
+    if metadata.get('local_files'):
+        st.success('Full reports saved to: '+metadata['report_directory'])
+        st.caption('Local-file mode: all reads are analyzed. Charts use weighted aggregate counts. Amplicon tables and plots show at most the first 500 clusters per sample; complete CSV/FASTA reports are on disk. Per-read reports are not loaded into the browser.')
+        if st.button('Open report folder in Windows Explorer'):
+            import subprocess
+            import shutil
+            if shutil.which('explorer.exe') and shutil.which('wslpath'):
+                windows_path=subprocess.run(['wslpath','-w',metadata['report_directory']],capture_output=True,text=True,check=True).stdout.strip()
+                subprocess.Popen(['explorer.exe',windows_path])
+            else:
+                st.info('Open the report folder using your file manager.')
     lengths=result['lengths']
-    st.plotly_chart(px.histogram(lengths,x='length',color='filter_status',facet_col='sample',nbins=60,title='Read-length distributions before and after filtering',labels={'length':'Read length (bp)'}),use_container_width=True)
+    weighted={'y':'read_count','histfunc':'sum'} if 'read_count' in lengths else {}
+    st.plotly_chart(px.histogram(lengths,**weighted,x='length',color='filter_status',facet_col='sample',nbins=60,title='Read-length distributions before and after filtering',labels={'length':'Read length (bp)'}),use_container_width=True)
     with st.expander('Quality statistics'):
-        q=lengths.dropna(subset=['mean_q'])
-        if len(q): st.plotly_chart(px.histogram(q,x='mean_q',color='sample',nbins=40,title='Read Q scores (FASTQ only)'),use_container_width=True)
+        q=result.get('quality_bins',lengths).dropna(subset=['mean_q'])
+        if len(q): st.plotly_chart(px.histogram(q,**({'y':'read_count','histfunc':'sum'} if 'read_count' in q else {}),x='mean_q',color='sample',nbins=40,title='Read Q scores (FASTQ only)'),use_container_width=True)
         else: st.info('No quality scores available; these are FASTA reads.')
     if metadata['settings']['mode']=='Amplicon discovery':
         table=result['amplicons']
@@ -119,7 +152,7 @@ if 'analysis' in st.session_state:
             compare=table.assign(sequence_group=table['consensus_dna'].map(labels)).groupby(['sample','sequence_group'],as_index=False)['percent_quality_filtered'].sum()
             st.plotly_chart(px.bar(compare,x='sequence_group',y='percent_quality_filtered',color='sample',barmode='group',title='Across-sample abundance · exact consensus DNA groups'),use_container_width=True)
             st.caption('Groups share exactly the same consensus DNA. Different sequences of the same length remain separate; this is not isoform classification.')
-            st.download_button('Download preliminary amplicon FASTA',fasta((f"{r.amplicon}|reads={r.supporting_reads}|preliminary",r.consensus_dna) for r in table.itertuples()),'preliminary_amplicons.fasta','text/plain')
+            st.download_button('Download preliminary amplicon FASTA'+(' (preview)' if metadata.get('local_files') else ''),fasta((f"{r.amplicon}|reads={r.supporting_reads}|preliminary",r.consensus_dna) for r in table.itertuples()),'preliminary_amplicons.fasta','text/plain')
     else:
         table=result['matches']
         st.caption('Unique assignments only. percent_quality_filtered uses all quality-filtered reads; percent_reference_assigned uses only uniquely reference-assigned reads. Ambiguous reads are excluded from both numerators and the assigned denominator. A full-length match meets the configured reference coverage threshold; it does not prove a full transcript or intact primer sites.')
@@ -131,5 +164,5 @@ if 'analysis' in st.session_state:
     st.subheader('Download reports')
     for name,frame in result.items():
         if not frame.empty:
-            st.download_button(f'Download {name.replace("_"," ")} CSV',frame.to_csv(index=False),f'{name}.csv','text/csv',key=f'dl_{name}')
+            st.download_button(f'Download {name.replace("_"," ")} CSV'+(' (preview/aggregated)' if metadata.get('local_files') else ''),frame.to_csv(index=False),f'{name}.csv','text/csv',key=f'dl_{name}')
     st.download_button('Download analysis settings and file provenance',json.dumps(metadata,indent=2),'analysis_settings.json','application/json')
