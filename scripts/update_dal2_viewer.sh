@@ -8,7 +8,7 @@ fi
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 base='https://raw.githubusercontent.com/monikasafhauzer/project/nanopore-race-app'
-files=(app.py requirements.txt nanopore/alignment.py nanopore/summary.py nanopore/dal2.py nanopore/viewer.py nanopore/viewer.html pages/1_DAL2_Alignment_Viewer.py)
+files=(app.py requirements.txt nanopore/alignment.py nanopore/summary.py nanopore/workflow.py nanopore/dal2.py nanopore/viewer.py nanopore/viewer.html pages/1_DAL2_Alignment_Viewer.py)
 for file in "${files[@]}"; do
   mkdir -p "$stage/$(dirname "$file")"
   curl -fL "$base/$file" -o "$stage/$file"

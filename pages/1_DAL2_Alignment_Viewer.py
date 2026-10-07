@@ -7,6 +7,7 @@ from nanopore.dal2 import REFERENCE, ANNOTATIONS, FORWARD_PRIMER, REVERSE_PRIMER
 from nanopore.alignment import load_consensus, build_rows, report_frame
 from nanopore.viewer import viewer_html
 from nanopore.summary import summarize_table
+from nanopore.workflow import workflow_excel, read_settings_metadata
 import plotly.express as px
 
 st.set_page_config(page_title='DAL2 5′ RACE alignment viewer',page_icon='🧬',layout='wide')
@@ -83,6 +84,25 @@ if 'dal2_summary' in st.session_state:
 
     if 'dal2_dataset' in st.session_state:
         dataset,reference,annotations,saved_trim,saved_identity,saved_span,saved_context=st.session_state['dal2_dataset']
+        with st.expander('Download shared workflow and settings Excel',expanded=True):
+            st.caption('One workflow report, without sample names or counts. It uses this completed alignment snapshot. To include the earlier FASTQ settings after a restart, upload its saved analysis_settings.json. These settings are not independently matched to the imported consensus file.')
+            settings_file=st.file_uploader('Earlier FASTQ analysis settings JSON (optional)',type=['json'],key='workflow_settings_json')
+            read_metadata=None
+            source='Not supplied: earlier FASTQ settings are not recorded'
+            valid_settings=True
+            if settings_file:
+                try:
+                    read_metadata=read_settings_metadata(settings_file.getvalue())
+                    source='User-supplied analysis_settings.json; association with consensus input not independently verified'
+                except Exception as exc:
+                    st.error(f'Cannot use settings file: {exc}')
+                    valid_settings=False
+            elif 'analysis' in st.session_state:
+                read_metadata=st.session_state['analysis'][1]
+                source='Completed read-analysis snapshot in this session; association with consensus input not independently verified'
+            if valid_settings:
+                alignment_settings=dict(reference=reference,annotations=annotations,trim=saved_trim,identity=saved_identity,span=saved_span,context_identity=saved_context)
+                st.download_button('Download workflow Excel (no sample results)',workflow_excel(read_metadata,alignment_settings,source),'workflow-and-settings.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',key='workflow_alignment_download')
         st.subheader('Choose analyzed rows for the interactive image')
         group=st.selectbox('Display a start group',options=['All groups']+summary.retained_start_group.drop_duplicates().tolist())
         eligible=members if group=='All groups' else members[members.retained_start_group==group]

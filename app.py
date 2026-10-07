@@ -8,6 +8,9 @@ from nanopore.pipeline import analyze
 from nanopore.tools import dependencies
 from nanopore.local import analyze_local, local_path
 from pathlib import Path
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from nanopore.workflow import workflow_excel, runtime_info
 
 st.set_page_config(page_title='Nanopore 5′ RACE Amplicon Analyzer', page_icon='🧬', layout='wide')
 st.title('Nanopore 5′ RACE Amplicon Analyzer')
@@ -106,11 +109,14 @@ if st.button('Analyze samples',type='primary'):
                 results,report_metadata=analyze_local(selected,settings,refs,local_path(output_root),lambda message: task.update(label=message))
                 metadata=dict(settings=settings,tools=status,references=refs,**report_metadata,
                     files={name:[dict(name=str(path),size_bytes=path.stat().st_size,modified_ns=path.stat().st_mtime_ns) for path in paths] for name,paths in selected.items()})
+                metadata.update(workflow_runtime=runtime_info(),workflow_completed_at=datetime.now(ZoneInfo('Europe/Stockholm')).isoformat())
                 Path(metadata['report_directory'],'analysis_settings.json').write_text(json.dumps(metadata,indent=2))
             else:
                 samples={name:load_reads(files,name) for name,files in uploads.items() if files}
                 results=analyze(samples,settings,refs,task.write)
                 metadata=dict(settings=settings,tools=status,files={name:[dict(name=f.name,sha256=hashlib.sha256(f.getvalue()).hexdigest()) for f in files] for name,files in uploads.items() if files},references=refs)
+            if 'workflow_runtime' not in metadata:
+                metadata.update(workflow_runtime=runtime_info(),workflow_completed_at=datetime.now(ZoneInfo('Europe/Stockholm')).isoformat())
             st.session_state['analysis']=(results,metadata)
             task.update(label='Analysis completed',state='complete',expanded=False)
     except Exception as exc:
@@ -163,6 +169,7 @@ if 'analysis' in st.session_state:
             st.dataframe(result['match_details'],hide_index=True,use_container_width=True)
         st.download_button('Download reference FASTA',fasta(metadata['references'].items()),'references.fasta','text/plain')
     st.subheader('Download reports')
+    st.download_button('Download workflow Excel (no sample results)',workflow_excel(metadata,settings_source='Completed read-analysis snapshot'),'workflow-and-settings.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',key='workflow_read_download')
     for name,frame in result.items():
         if not frame.empty:
             st.download_button(f'Download {name.replace("_"," ")} CSV'+(' (preview/aggregated)' if metadata.get('local_files') else ''),frame.to_csv(index=False),f'{name}.csv','text/csv',key=f'dl_{name}')
