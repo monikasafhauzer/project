@@ -27,15 +27,16 @@ trim=st.checkbox('Remove candidate TSO-derived 5′ sequence before alignment',v
 a,b=st.columns(2)
 identity=a.slider('Minimum aligned sequence identity (%)',50,100,70)/100
 span=b.number_input('Minimum aligned reference span (bp)',20,20000,80)
+context_identity=st.slider('Minimum downstream context identity for start grouping (%)',50,100,80)/100
+st.caption('Grouping checks the next 50 reference bases from each annotated ATG (at least 40 covered bases), plus a 12-base near-start check (at least 10 covered bases and at least 85% identity). A different 5′ prefix is allowed and does not count as an earlier uORF. Weak downstream support and altered well-supported start codons remain separately flagged.')
 frame=None
 if upload:
     try:
         frame=load_consensus(upload.name,upload.getvalue())
-        st.caption(f'{len(frame):,} consensus sequences available. Choose up to 100 rows per interactive comparison; all selected rows are reported, including uncertain alignments.')
-        labels={i:f"{r.get('sample','')} · {r['amplicon']} · reads={r.get('supporting_reads','unknown')}" for i,r in enumerate(frame.to_dict('records'))}
-        selected=st.multiselect('Amplicons to compare',options=list(labels),default=list(labels)[:min(30,len(labels))],format_func=lambda i:labels[i],max_selections=100)
+        st.info(f'{len(frame):,} rows imported. Analysis will process EVERY row; the interactive display is a separate selection made afterward.')
     except Exception as exc:
         st.error(str(exc))
+
 def alignment_inputs():
     parsed=references(reference_text)
     if len(parsed)!=1: raise ValueError('Provide exactly one reference for this annotated viewer.')
@@ -47,55 +48,70 @@ def alignment_inputs():
     annotations.sort(key=lambda x:x['start'])
     return reference,annotations
 
-if st.button('Summarize ALL imported amplicons',type='primary'):
+if st.button('Analyze ALL Excel/CSV rows',type='primary'):
     try:
         if frame is None: raise ValueError('Upload a grouped consensus table first.')
         reference,annotations=alignment_inputs()
-        progress=st.progress(0,text=f'Aligning all {len(frame):,} imported rows for summary…')
-        summary,members=summarize_table(frame,reference,annotations,trim,identity,span,progress.progress)
+        progress=st.progress(0,text=f'Analyzing all {len(frame):,} imported rows…')
+        def update_progress(fraction):
+            progress.progress(fraction,text=f'Analyzed {round(fraction*len(frame)):,} / {len(frame):,} rows')
+        summary,members=summarize_table(frame,reference,annotations,trim,identity,span,update_progress,context_identity)
         progress.empty()
         st.session_state['dal2_summary']=(summary,members,len(frame))
+        st.session_state['dal2_dataset']=(frame.copy(),reference,annotations,trim,identity,span,context_identity)
+        st.session_state.pop('dal2_view',None)
     except Exception as exc:
-        st.error(f'Summary could not finish: {exc}')
+        st.error(f'Analysis could not finish: {exc}. No rows from this run have been silently skipped.')
 
 if 'dal2_summary' in st.session_state:
     summary,members,total=st.session_state['dal2_summary']
     st.subheader(f'Full-table retained-start summary · {total:,} imported amplicons')
-    st.caption('Saved summary snapshot: rerun Summarize ALL after changing inputs or settings. Includes every imported row, regardless of the interactive selection. “Retained” describes the first confidently intact annotated ATG, not an exact transcript start or complete ORF. Different upstream extensions stay together when uORF1 is confidently retained. Earlier altered or uncertain start sites remain in the uncertain group.')
+    st.success(f'{total:,} imported rows · {len(members):,} analyzed rows · {int(summary.amplicon_clusters.sum()):,} rows accounted for in groups')
+    st.caption('Saved analysis snapshot: rerun Analyze ALL after changing inputs or settings. Different/unaligned 5′ sequences do not block a downstream uORF group. Groups represent the first intact annotated ATG with supported downstream sequence, not exact biological starts or complete ORFs. Earlier reference uORFs outside the alignment are not inferred from the unaligned prefix.')
     st.dataframe(summary,hide_index=True)
-    st.caption('percent_of_imported_supporting_reads uses all supporting reads in this imported table per sample. The other percentages sum the original input percentages and retain their original quality-filtered/assigned denominators. Import the complete amplicons.csv for a complete sample summary; a preview or subset gives only a subset summary. Missing counts/percentages remain unknown. Read counts assume disjoint amplicon clusters.')
+    st.caption('percent_of_imported_supporting_reads uses all supporting reads in this imported table per sample. The other percentages retain the original quality-filtered/assigned denominators. A partial source file still gives only a subset summary; use the complete amplicons.csv. Missing counts remain unknown. Read counts assume disjoint clusters.')
     if summary.supporting_reads.notna().all():
-        st.plotly_chart(px.bar(summary,x='retained_start_group',y='supporting_reads',color='sample',barmode='group',title='Read support by first confidently retained start'),use_container_width=True)
+        st.plotly_chart(px.bar(summary,x='retained_start_group',y='supporting_reads',color='sample',barmode='group',title='Read support by retained start · uORF order'),use_container_width=True)
     for sample in summary['sample'].unique():
         for group in summary.loc[summary['sample']==sample,'retained_start_group']:
             subset=members[(members['sample']==sample)&(members['retained_start_group']==group)]
             with st.expander(f'{sample} · {group} · {len(subset):,} amplicon clusters'):
                 st.dataframe(subset.drop(columns=['sequence','upstream_sequence','downstream_sequence','adapter_removed'],errors='ignore'),hide_index=True)
-                st.caption('Full sequences and upstream extensions are included in the downloadable group-members CSV.')
+                st.caption('All member sequences and different 5′ prefixes are preserved in the full downloadable CSV.')
     st.download_button('Download retained-start summary CSV',summary.to_csv(index=False),'dal2-retained-start-summary.csv','text/csv')
-    st.download_button('Download ALL group members and sequences CSV',members.to_csv(index=False),'dal2-group-members.csv','text/csv')
+    st.download_button('Download ALL analyzed rows and sequences CSV',members.to_csv(index=False),'dal2-group-members.csv','text/csv')
 
-if st.button('Align selected amplicons'):
-    try:
-        if frame is None: raise ValueError('Upload a grouped consensus table first.')
-        if not selected: raise ValueError('Select at least one amplicon.')
-        reference,annotations=alignment_inputs()
-        progress=st.progress(0,text='Aligning preliminary consensus sequences…')
-        rows=build_rows(frame.iloc[selected],reference,annotations,trim,identity,span,progress.progress)
-        progress.empty()
-        st.session_state['dal2_view']=(reference,annotations,rows)
-    except Exception as exc:
-        st.error(f'Alignment could not finish: {exc}')
+    if 'dal2_dataset' in st.session_state:
+        dataset,reference,annotations,saved_trim,saved_identity,saved_span,saved_context=st.session_state['dal2_dataset']
+        st.subheader('Choose analyzed rows for the interactive image')
+        group=st.selectbox('Display a start group',options=['All groups']+summary.retained_start_group.drop_duplicates().tolist())
+        eligible=members if group=='All groups' else members[members.retained_start_group==group]
+        group_rank={name:i for i,name in enumerate(summary.retained_start_group.drop_duplicates())}
+        positions=[int(row_id.split('_')[-1])-1 for row_id in eligible.id]
+        positions.sort(key=lambda i:group_rank[members.iloc[i]['retained_start_group']])
+        labels={i:f"{members.iloc[i]['sample']} · {members.iloc[i]['name']} · {members.iloc[i]['retained_start_group']}" for i in positions}
+        selected=st.multiselect('Rows to display (analysis already includes ALL rows)',options=positions,default=positions[:30],format_func=lambda i:labels[i],max_selections=100,key='display_rows_'+group)
+        st.caption('The 100-row limit applies only to the interactive image, never the full analysis or CSV exports. Rebuilding the image uses the saved analysis settings.')
+        if st.button('Build interactive image of selected analyzed rows'):
+            if not selected:
+                st.error('Choose at least one analyzed row to display.')
+            else:
+                progress=st.progress(0,text='Building interactive image…')
+                rows=build_rows(dataset.iloc[selected],reference,annotations,saved_trim,saved_identity,saved_span,progress.progress)
+                for row,idx in zip(rows,selected):
+                    row['metadata']['retained_start_group']=members.iloc[idx]['retained_start_group']
+                progress.empty()
+                st.session_state['dal2_view']=(reference,annotations,rows)
 
 if 'dal2_view' in st.session_state:
     reference,annotations,rows=st.session_state['dal2_view']
     st.subheader('Interactive alignment — drag rows to reorder')
-    st.caption('This is a saved alignment snapshot; changing inputs requires Align selected amplicons again. Row order is managed in the viewer: use its SVG and row-order exports to preserve your arrangement.')
+    st.caption('Image selection only. The full-table summary and exports include every analyzed row. Row order is managed in the viewer; use its SVG and order exports to preserve your arrangement.')
     html=viewer_html(reference,annotations,rows)
     components.html(html,height=980,scrolling=True)
-    st.caption('Reference-projection FASTA includes aligned reference columns only: insertions and unaligned extensions are omitted. Use the full CSV/JSON for those sequences and the self-contained HTML for the complete interactive display.')
+    st.caption('Reference-projection FASTA omits insertions and unaligned extensions. Use CSV/JSON for full sequences and HTML for the complete interactive display.')
     report=report_frame(rows)
     st.dataframe(report.drop(columns=['sequence','upstream_sequence','downstream_sequence','adapter_removed'],errors='ignore'),hide_index=True)
-    st.download_button('Download alignment and feature CSV',report.to_csv(index=False),'dal2-alignment-report.csv','text/csv')
-    st.download_button('Download complete alignment JSON',json.dumps(dict(reference=reference,annotations=annotations,rows=rows),indent=2,default=str),'dal2-alignment.json','application/json')
+    st.download_button('Download displayed-row alignment CSV',report.to_csv(index=False),'dal2-displayed-alignment.csv','text/csv')
+    st.download_button('Download displayed-row alignment JSON',json.dumps(dict(reference=reference,annotations=annotations,rows=rows),indent=2,default=str),'dal2-displayed-alignment.json','application/json')
     st.download_button('Download standalone interactive viewer',html,'dal2-interactive-alignment.html','text/html')

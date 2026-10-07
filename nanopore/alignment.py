@@ -9,7 +9,17 @@ from .dal2 import TSO, TSO_TAIL, FORWARD_PRIMER
 
 def load_consensus(name, content):
     if name.lower().endswith('.xlsx'):
-        frame=pd.read_excel(io.BytesIO(content),engine='openpyxl')
+        sheets=pd.read_excel(io.BytesIO(content),engine='openpyxl',sheet_name=None)
+        frames=[]
+        for sheet_name,sheet in sheets.items():
+            if sheet.empty: continue
+            sheet.columns=[str(x).strip() for x in sheet.columns]
+            missing={'amplicon','consensus_dna'}-set(sheet.columns)
+            if missing: raise ValueError(f'Worksheet {sheet_name}: missing columns '+', '.join(sorted(missing)))
+            sheet['source_sheet']=sheet_name
+            if 'sample' not in sheet.columns: sheet['sample']=sheet_name
+            frames.append(sheet)
+        frame=pd.concat(frames,ignore_index=True) if frames else pd.DataFrame()
     elif name.lower().endswith('.csv'):
         frame=pd.read_csv(io.BytesIO(content))
     else:
@@ -20,8 +30,6 @@ def load_consensus(name, content):
         raise ValueError('Missing columns: '+', '.join(sorted(missing)))
     if frame.empty:
         raise ValueError('The table contains no amplicons.')
-    if len(frame)>5000:
-        raise ValueError('This viewer accepts up to 5,000 rows. Export a selected subset for comparison.')
     for i,value in enumerate(frame.consensus_dna):
         try:
             seq=dna(str(value))
@@ -105,7 +113,7 @@ def align_consensus(sequence,reference,annotations,trim=True,min_identity=.7,min
         status='Ambiguous alignment'
     upstream=cleaned[:qstart]; downstream=cleaned[qend:]
     if status!='Aligned':
-        endpoint='Uncertain: insufficient reference alignment'
+        endpoint='Uncertain: alternate 5′ alignment boundaries' if status=='Ambiguous alignment' else 'Uncertain: insufficient reference alignment'
         start=None
     elif upstream and rstart==0:
         endpoint='Extends upstream of reference/uORF1; exact upstream position unknown'
@@ -119,7 +127,7 @@ def align_consensus(sequence,reference,annotations,trim=True,min_identity=.7,min
     features={}
     for feature in annotations:
         a,b=int(feature['start'])-1,int(feature['end'])
-        if status!='Aligned':
+        if status not in ('Aligned','Ambiguous alignment'):
             state='uncertain'
         elif all(x in mapping for x in range(a,b)):
             observed=''.join(mapping[x] for x in range(a,b))
@@ -129,12 +137,34 @@ def align_consensus(sequence,reference,annotations,trim=True,min_identity=.7,min
         else:
             state='uncertain/not covered'
         features[feature['label']]=state
+    alternate_mapping={}
+    if ambiguous:
+        ac=alternate.coordinates
+        for i in range(ac.shape[1]-1):
+            ra,qa=map(int,ac[:,i]);rb,qb=map(int,ac[:,i+1])
+            if rb>ra and qb>qa:
+                alternate_mapping.update({r:cleaned[q] for r,q in zip(range(ra,rb),range(qa,qb))})
+            elif rb>ra:
+                alternate_mapping.update({r:'-' for r in range(ra,rb)})
+    start_support={}
+    for feature in annotations:
+        if feature.get('kind')!='start': continue
+        a=int(feature['start'])-1; b=min(a+50,len(reference))
+        covered=sum(x in mapping for x in range(a,b))
+        exact=sum(mapping.get(x)==reference[x] and reference[x] in 'ACGT' for x in range(a,b))
+        inserted=sum(len(x['sequence']) for x in insertions if a<x['after']<b)
+        near_end=min(a+12,b)
+        near_covered=sum(x in mapping for x in range(a,near_end))
+        near_exact=sum(mapping.get(x)==reference[x] and reference[x] in 'ACGT' for x in range(a,near_end))
+        near_inserted=sum(len(x['sequence']) for x in insertions if a<x['after']<near_end)
+        consistent=not ambiguous or all(mapping.get(x)==alternate_mapping.get(x) for x in range(a,b))
+        start_support[feature['label']]=dict(covered_bases=covered,window_bases=b-a,identity=exact/(covered+inserted) if covered+inserted else 0,near_covered_bases=near_covered,near_identity=near_exact/(near_covered+near_inserted) if near_covered+near_inserted else 0,placement_consistent=consistent)
     retained=[x['label'] for x in annotations if x.get('kind')=='start' and features[x['label']]=='intact']
     return dict(status=status,sequence=cleaned,reverse_complemented=reverse,adapter_removed=adapter,adapter_note=note,
         identity=identity,reference_coverage=(rend-rstart)/len(reference),aligned_reference_start=rstart+1,
         aligned_reference_end=rend,observed_5prime_coordinate=start,endpoint_interpretation=endpoint,
         upstream_sequence=upstream,downstream_sequence=downstream,first_intact_annotated_start=retained[0] if retained else 'None confidently observed',
-        features=features,bases=bases,insertions=insertions,alignment_score=score)
+        features=features,start_site_support=start_support,bases=bases,insertions=insertions,alignment_score=score)
 
 
 def build_rows(frame,reference,annotations,trim=True,min_identity=.7,min_span=80,progress=None):
@@ -152,7 +182,7 @@ def build_rows(frame,reference,annotations,trim=True,min_identity=.7,min_span=80
 def report_frame(rows):
     records=[]
     for row in rows:
-        report={**row['metadata'],**{k:v for k,v in row.items() if k not in ('metadata','bases','insertions','features')}}
+        report={**row['metadata'],**{k:v for k,v in row.items() if k not in ('metadata','bases','insertions','features','start_site_support')}}
         report.update({f'feature: {name}':state for name,state in row['features'].items()})
         records.append(report)
     return pd.DataFrame(records)
