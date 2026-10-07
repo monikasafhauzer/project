@@ -95,3 +95,29 @@ python -m pytest -q
 Tests exercise compressed FASTQ/FASTA, malformed records, quality filtering, primer substitutions/indels and both orientations, single-primer behavior, equal-length distinct clusters, real VSEARCH consensus, real minimap2 full/partial/reverse-strand/ambiguous mappings and Streamlit startup/input validation. Native tools must be on PATH.
 
 Modules are separated into `io`, `primers`, `discovery`, `matching`, `pipeline` and `tools`. Improved consensus polishing can replace the consensus stage in `discovery.py`; isoform classification should be a separate downstream module with explicit evidence, rather than inferred from lengths or abundance. `app.py` owns only presentation and input validation.
+
+## Annotated DAL2 consensus alignment viewer
+
+Open **DAL2 Alignment Viewer** in the sidebar or use the link on the main page. This is an independent analysis of grouped consensus CSV/XLSX reports, not another read-level run. Required columns: `amplicon`, `consensus_dna`. Existing sample, read-support, percentages and other metadata are preserved. Excel uses the first worksheet. Select up to 100 rows per comparison from a table of up to 5,000 rows; sequences are limited to 20,000 bases, references to 10,000. The default selection is the first 30 rows, visibly listed in the selection control.
+
+The user-supplied 589-base DAL2 reference starts at uORF1. Default ATG sites are 1, 14, 32, 37, 48 (five upstream starts), 100 (main DAL2), 122 and 170 (candidate internal starts). Reverse-primer binding site: 564–589, matching the reverse complement of `GAGTAAACCTTTCTTTAGTAAGGCCG`. Coordinates are reference-local, 1-based, inclusive; they are not genomic positions. The reference and annotation table can be edited together. Start annotations must match ATG. These annotate initiation sites, not experimentally validated full ORFs or translation.
+
+The PCR forward oligo is `CATTGCAAGCAGTGGTATCAAC`. The TSO continues with `GCAGAGTACATrGrGrG`; original primer-only trimming can leave this residual sequence in the exported consensus. The viewer optionally trims a candidate full TSO, PCR-primer-plus-tail or residual tail near the oriented 5′ boundary, allowing one total edit, preserving the removed sequence and interpretation in reports. RNA G residues are represented as DNA G. No internal motif is trimmed. Missing or truncated adapter is not proof of biological sequence; ownership of G residues at the junction remains uncertain. The input consensus file is never edited.
+
+Biopython local alignment searches both orientations, scoring matches +2, mismatches −3, gap openings −5 and extensions −1. Defaults require 70% aligned identity (exact A/C/G/T matches divided by alignment columns, including gaps) and at least 80 aligned reference bases. These thresholds differ from read clustering identity. Equal-score alternate placements detected at different starts are flagged ambiguous. Weak/ambiguous alignments do not receive feature-presence classifications. Unaligned ends are retained; no full-length exact match is required.
+
+A 5′ extension beyond reference base 1 is reported as upstream of the supplied reference, without invented coordinates. A downstream alignment preceded by an unaligned prefix has an uncertain endpoint. An endpoint aligned directly to the reference is an observed sequence boundary, **not a proven transcription start**. Feature states distinguish intact ATG/site, altered/gapped, outside the observed 5′ sequence and uncertain/not covered. Insertions inside an ATG prevent an intact-codon call. Retaining a start codon does not establish a complete uORF or biological isoform.
+
+Drag rows or use ↑/↓ controls; sort by support, aligned start or length. Zoom for DNA letters and hover for bases, insertions and upstream sequences. The amber upstream lane is visually spaced only: prefixes are not aligned to each other and do not have reference coordinates. At most the last 500 upstream bases are drawn; complete extensions are preserved in reports. The order is remembered in browser storage when available. Export arranged SVG, save/restore order JSON, or download a self-contained HTML viewer for offline interaction. These exports follow the viewer's row order. The Streamlit CSV/JSON exports preserve analysis order and full sequence/alignment data. Reference-projection FASTA omits insertions and unaligned ends and must not be interpreted as full amplicon sequences. Imported abundance percentages retain their original denominators; selecting rows does not recalculate abundance.
+
+### Updating the Windows/WSL installation
+
+Wait for any active run to finish; then stop Streamlit with Ctrl+C before updating. From the folder containing `app.py`:
+
+```bash
+curl -fL https://raw.githubusercontent.com/monikasafhauzer/project/nanopore-race-app/scripts/update_dal2_viewer.sh -o /tmp/update_dal2_viewer.sh
+bash /tmp/update_dal2_viewer.sh
+~/.nanopore-app/bin/python -m streamlit run app.py
+```
+
+The updater downloads all required files before replacing them, installs Excel support in the prepared environment, and backs up existing affected files under `update-backups/`. Refresh the browser after restarting. Changing pages during an active Streamlit analysis may interrupt that session; finish the read analysis before navigating to the viewer.

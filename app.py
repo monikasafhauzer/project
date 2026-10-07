@@ -11,6 +11,7 @@ from pathlib import Path
 
 st.set_page_config(page_title='Nanopore 5′ RACE Amplicon Analyzer', page_icon='🧬', layout='wide')
 st.title('Nanopore 5′ RACE Amplicon Analyzer')
+st.page_link('pages/1_DAL2_Alignment_Viewer.py',label='Open DAL2 alignment viewer — import grouped CSV/Excel results',icon='🧬')
 st.write('Explore amplicons or match known references in three independently sequenced PCR samples.')
 st.warning('Read percentages describe PCR-derived sequencing-read abundance, not original RNA molecule abundance. Preliminary clusters and consensus sequences do not establish biological isoforms. PCR chimeras and sequencing artifacts require further validation.')
 with st.expander('Before you begin · formats, primers and interpretation'):
