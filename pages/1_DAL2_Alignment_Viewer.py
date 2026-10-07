@@ -6,9 +6,10 @@ from nanopore.io import references
 from nanopore.dal2 import REFERENCE, ANNOTATIONS, FORWARD_PRIMER, REVERSE_PRIMER
 from nanopore.alignment import load_consensus, build_rows, report_frame
 from nanopore.viewer import viewer_html
-from nanopore.summary import summarize_table
 from nanopore.workflow import workflow_excel, read_settings_metadata
 import plotly.express as px
+from nanopore.jobs import submit_job
+from nanopore.job_ui import job_panel
 
 st.set_page_config(page_title='DAL2 5′ RACE alignment viewer',page_icon='🧬',layout='wide')
 st.title('DAL2 5′ RACE alignment viewer')
@@ -53,16 +54,16 @@ if st.button('Analyze ALL Excel/CSV rows',type='primary'):
     try:
         if frame is None: raise ValueError('Upload a grouped consensus table first.')
         reference,annotations=alignment_inputs()
-        progress=st.progress(0,text=f'Analyzing all {len(frame):,} imported rows…')
-        def update_progress(fraction):
-            progress.progress(fraction,text=f'Analyzed {round(fraction*len(frame)):,} / {len(frame):,} rows')
-        summary,members=summarize_table(frame,reference,annotations,trim,identity,span,update_progress,context_identity)
-        progress.empty()
-        st.session_state['dal2_summary']=(summary,members,len(frame))
-        st.session_state['dal2_dataset']=(frame.copy(),reference,annotations,trim,identity,span,context_identity)
-        st.session_state.pop('dal2_view',None)
+        request=dict(kind='dal2',reference=reference,annotations=annotations,trim=trim,identity=identity,span=span,context_identity=context_identity)
+        with st.spinner('Saving the complete table and launching background analysis…'):
+            job_id=submit_job(request,table=frame)
+        st.session_state['active_job_dal2']=job_id
+        st.session_state['job_select_dal2']=job_id
+        st.success('Background table analysis started. You may close the browser tab and reconnect using the job list.')
     except Exception as exc:
         st.error(f'Analysis could not finish: {exc}. No rows from this run have been silently skipped.')
+
+job_panel('dal2')
 
 if 'dal2_summary' in st.session_state:
     summary,members,total=st.session_state['dal2_summary']

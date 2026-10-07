@@ -1,16 +1,14 @@
 import json
-import hashlib
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from nanopore.io import dna, load_reads, references, fasta
-from nanopore.pipeline import analyze
+from nanopore.io import dna, references, fasta
 from nanopore.tools import dependencies
-from nanopore.local import analyze_local, local_path
+from nanopore.local import local_path
 from pathlib import Path
-from datetime import datetime
-from zoneinfo import ZoneInfo
-from nanopore.workflow import workflow_excel, runtime_info
+from nanopore.workflow import workflow_excel
+from nanopore.jobs import submit_job
+from nanopore.job_ui import job_panel
 
 st.set_page_config(page_title='Nanopore 5′ RACE Amplicon Analyzer', page_icon='🧬', layout='wide')
 st.title('Nanopore 5′ RACE Amplicon Analyzer')
@@ -65,7 +63,7 @@ for i,col in enumerate(columns,1):
             local_samples[f'Sample_{i}']=[local_path(line) for line in paths.splitlines() if line.strip()]
         else:
             uploads[f'Sample_{i}']=st.file_uploader('Sequencing files',type=['fastq','fq','gz','fasta','fa','fna'],accept_multiple_files=True,key=f'files_{i}')
-st.caption('You can start with one sample; add all three for comparison. Files are processed in this local Streamlit process, never uploaded to an external analysis service. Larger datasets need more memory; prefilter or subsample externally if necessary.')
+st.caption('You can start with one sample; add all three for comparison. Inputs are saved before launching a detached local worker; no external analysis service is used. Larger datasets need more memory; prefilter or subsample externally if necessary.')
 
 anchor=gene=''; ref_text=''
 if mode=='Amplicon discovery':
@@ -102,26 +100,30 @@ if st.button('Analyze samples',type='primary'):
                 if set(file_refs)&set(refs): raise ValueError('Reference names are duplicated between pasted and uploaded references.')
                 refs.update(file_refs)
             if not refs: raise ValueError('Provide at least one reference sequence.')
-        with st.status('Running analysis…',expanded=True) as task:
-            if local_mode:
-                if not output_root.strip(): raise ValueError('Choose a report output folder.')
-                selected={name:paths for name,paths in local_samples.items() if paths}
-                results,report_metadata=analyze_local(selected,settings,refs,local_path(output_root),lambda message: task.update(label=message))
-                metadata=dict(settings=settings,tools=status,references=refs,**report_metadata,
-                    files={name:[dict(name=str(path),size_bytes=path.stat().st_size,modified_ns=path.stat().st_mtime_ns) for path in paths] for name,paths in selected.items()})
-                metadata.update(workflow_runtime=runtime_info(),workflow_completed_at=datetime.now(ZoneInfo('Europe/Stockholm')).isoformat())
-                Path(metadata['report_directory'],'analysis_settings.json').write_text(json.dumps(metadata,indent=2))
-            else:
-                samples={name:load_reads(files,name) for name,files in uploads.items() if files}
-                results=analyze(samples,settings,refs,task.write)
-                metadata=dict(settings=settings,tools=status,files={name:[dict(name=f.name,sha256=hashlib.sha256(f.getvalue()).hexdigest()) for f in files] for name,files in uploads.items() if files},references=refs)
-            if 'workflow_runtime' not in metadata:
-                metadata.update(workflow_runtime=runtime_info(),workflow_completed_at=datetime.now(ZoneInfo('Europe/Stockholm')).isoformat())
-            st.session_state['analysis']=(results,metadata)
-            task.update(label='Analysis completed',state='complete',expanded=False)
+        if local_mode:
+            if not output_root.strip(): raise ValueError('Choose a report output folder.')
+            selected={name:[str(path.resolve()) for path in paths] for name,paths in local_samples.items() if paths}
+            for paths in selected.values():
+                for path in paths:
+                    if not Path(path).is_file(): raise ValueError(f'File not found: {path}')
+            report_root=str(local_path(output_root).resolve())
+        else:
+            selected={}
+            report_root=str(Path.home()/'nanopore-results')
+            # Cloud workspace has restricted home writes; place reports beside jobs there.
+            if Path('/workspace') in Path.cwd().resolve().parents:
+                report_root='/workspace/.onboarding/nanopore-results'
+        request=dict(kind='reads',samples=selected,settings=settings,references=refs,output_root=report_root,tools=status)
+        with st.spinner('Saving inputs and starting background analysis…'):
+            job_id=submit_job(request,uploads=None if local_mode else uploads)
+        st.session_state['active_job_reads']=job_id
+        st.session_state['job_select_reads']=job_id
+        st.success('Background job started. You may now close this browser tab; reopen the app and use Load completed results when it finishes.')
     except Exception as exc:
         st.error(f'Analysis could not finish: {exc}')
         st.info('Check file format, primer orientation and thresholds. No partial results from this run are presented.')
+
+job_panel('reads')
 
 if 'analysis' in st.session_state:
     result,metadata=st.session_state['analysis']

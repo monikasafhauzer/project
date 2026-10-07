@@ -53,6 +53,13 @@ def test_local_file_mode_runs_and_renders(tmp_path):
     app.button[0].click().run(timeout=30)
     assert not app.exception
     assert not app.error
+    from test_jobs import wait_for_job
+    job_id=app.session_state['active_job_reads']
+    assert wait_for_job(job_id)['state']=='completed'
+    # Reopen with a completely fresh browser session; uploads/session state are gone.
+    app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=30)
+    next(b for b in app.button if b.label=='Load completed results').click().run(timeout=30)
+    assert not app.exception
     result,metadata=app.session_state['analysis']
     assert result['stats'].input_reads.tolist()==[2]
     assert metadata['local_files']
