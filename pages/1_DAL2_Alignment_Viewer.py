@@ -6,6 +6,8 @@ from nanopore.io import references
 from nanopore.dal2 import REFERENCE, ANNOTATIONS, FORWARD_PRIMER, REVERSE_PRIMER
 from nanopore.alignment import load_consensus, build_rows, report_frame
 from nanopore.viewer import viewer_html
+from nanopore.summary import summarize_table
+import plotly.express as px
 
 st.set_page_config(page_title='DAL2 5′ RACE alignment viewer',page_icon='🧬',layout='wide')
 st.title('DAL2 5′ RACE alignment viewer')
@@ -34,18 +36,50 @@ if upload:
         selected=st.multiselect('Amplicons to compare',options=list(labels),default=list(labels)[:min(30,len(labels))],format_func=lambda i:labels[i],max_selections=100)
     except Exception as exc:
         st.error(str(exc))
-if st.button('Align selected amplicons',type='primary'):
+def alignment_inputs():
+    parsed=references(reference_text)
+    if len(parsed)!=1: raise ValueError('Provide exactly one reference for this annotated viewer.')
+    reference=next(iter(parsed.values()))
+    if len(reference)>10000: raise ValueError('Use a reference of at most 10,000 bases for this viewer.')
+    annotations=edited.dropna(how='all').to_dict('records')
+    for annotation in annotations:
+        annotation['start']=int(annotation['start']);annotation['end']=int(annotation['end'])
+    annotations.sort(key=lambda x:x['start'])
+    return reference,annotations
+
+if st.button('Summarize ALL imported amplicons',type='primary'):
+    try:
+        if frame is None: raise ValueError('Upload a grouped consensus table first.')
+        reference,annotations=alignment_inputs()
+        progress=st.progress(0,text=f'Aligning all {len(frame):,} imported rows for summary…')
+        summary,members=summarize_table(frame,reference,annotations,trim,identity,span,progress.progress)
+        progress.empty()
+        st.session_state['dal2_summary']=(summary,members,len(frame))
+    except Exception as exc:
+        st.error(f'Summary could not finish: {exc}')
+
+if 'dal2_summary' in st.session_state:
+    summary,members,total=st.session_state['dal2_summary']
+    st.subheader(f'Full-table retained-start summary · {total:,} imported amplicons')
+    st.caption('Saved summary snapshot: rerun Summarize ALL after changing inputs or settings. Includes every imported row, regardless of the interactive selection. “Retained” describes the first confidently intact annotated ATG, not an exact transcript start or complete ORF. Different upstream extensions stay together when uORF1 is confidently retained. Earlier altered or uncertain start sites remain in the uncertain group.')
+    st.dataframe(summary,hide_index=True)
+    st.caption('percent_of_imported_supporting_reads uses all supporting reads in this imported table per sample. The other percentages sum the original input percentages and retain their original quality-filtered/assigned denominators. Import the complete amplicons.csv for a complete sample summary; a preview or subset gives only a subset summary. Missing counts/percentages remain unknown. Read counts assume disjoint amplicon clusters.')
+    if summary.supporting_reads.notna().all():
+        st.plotly_chart(px.bar(summary,x='retained_start_group',y='supporting_reads',color='sample',barmode='group',title='Read support by first confidently retained start'),use_container_width=True)
+    for sample in summary['sample'].unique():
+        for group in summary.loc[summary['sample']==sample,'retained_start_group']:
+            subset=members[(members['sample']==sample)&(members['retained_start_group']==group)]
+            with st.expander(f'{sample} · {group} · {len(subset):,} amplicon clusters'):
+                st.dataframe(subset.drop(columns=['sequence','upstream_sequence','downstream_sequence','adapter_removed'],errors='ignore'),hide_index=True)
+                st.caption('Full sequences and upstream extensions are included in the downloadable group-members CSV.')
+    st.download_button('Download retained-start summary CSV',summary.to_csv(index=False),'dal2-retained-start-summary.csv','text/csv')
+    st.download_button('Download ALL group members and sequences CSV',members.to_csv(index=False),'dal2-group-members.csv','text/csv')
+
+if st.button('Align selected amplicons'):
     try:
         if frame is None: raise ValueError('Upload a grouped consensus table first.')
         if not selected: raise ValueError('Select at least one amplicon.')
-        parsed=references(reference_text)
-        if len(parsed)!=1: raise ValueError('Provide exactly one reference for this annotated viewer.')
-        reference=next(iter(parsed.values()))
-        if len(reference)>10000: raise ValueError('Use a reference of at most 10,000 bases for this viewer.')
-        annotations=edited.dropna(how='all').to_dict('records')
-        for annotation in annotations:
-            annotation['start']=int(annotation['start']);annotation['end']=int(annotation['end'])
-        annotations.sort(key=lambda x:x['start'])
+        reference,annotations=alignment_inputs()
         progress=st.progress(0,text='Aligning preliminary consensus sequences…')
         rows=build_rows(frame.iloc[selected],reference,annotations,trim,identity,span,progress.progress)
         progress.empty()

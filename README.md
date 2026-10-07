@@ -121,3 +121,11 @@ bash /tmp/update_dal2_viewer.sh
 ```
 
 The updater downloads all required files before replacing them, installs Excel support in the prepared environment, and backs up existing affected files under `update-backups/`. Refresh the browser after restarting. Changing pages during an active Streamlit analysis may interrupt that session; finish the read analysis before navigating to the viewer.
+
+### Full-table retained-start summary
+
+Click **Summarize ALL imported amplicons** in the DAL2 viewer to align every imported row independently of the interactive selection. This can take longer than aligning selected rows. Different upstream extensions are combined when uORF1 is confidently intact. Other groups represent the first confidently retained annotated start (uORF2–5, main DAL2, or either internal ATG). An earlier altered, partially covered or uncertain start blocks assignment to a later group; insufficient or ambiguous alignments remain uncertain. These groups describe retained start sites, not exact transcript starts or complete ORFs.
+
+The summary shows amplicon-cluster counts, summed supporting reads, original-input abundance percentages, extension counts, and supporting-read percentages within the imported table, separately per sample. All groups, including uncertainty, contribute to the imported-table denominator. Missing support makes that sample's imported-support denominator unknown; missing percentages remain unknown rather than becoming zero. Duplicate sample/amplicon rows and invalid negative/fractional read counts are rejected to avoid misleading totals. Counts assume the source amplicon clusters have disjoint read memberships.
+
+Expand each group to inspect its members. Download the summary and complete member CSV (including sequences, upstream extensions and feature states). For a complete sample report, import the complete on-disk `amplicons.csv`, not a 500-cluster preview or an Excel subset. The app knows every imported row was analyzed; it cannot establish that the imported file includes every cluster in the original sample. Results remain a labeled snapshot until recomputed. Native read-level analysis and its filtering are unchanged.
