@@ -10,6 +10,7 @@ from nanopore.workflow import workflow_excel, read_settings_metadata
 import plotly.express as px
 from nanopore.jobs import submit_job
 from nanopore.job_ui import job_panel
+from nanopore.local import local_path
 
 st.set_page_config(page_title='DAL2 5′ RACE alignment viewer',page_icon='🧬',layout='wide')
 st.title('DAL2 5′ RACE alignment viewer')
@@ -21,7 +22,29 @@ with st.expander('Your experimental design and alignment interpretation',expande
     st.write('The residual TSO can remain after the original app trims the PCR primer. Candidate adapter matches near the 5′ end can be removed for alignment, with the removed sequence reported. RNA rG residues are represented as G in DNA. The TSO/biological G boundary remains uncertain. Unrecognized or truncated adapter sequence is not automatically removed.')
     st.write('Local alignment allows mismatches and indels and tests both orientations. Upstream sequence outside the reference is preserved. Unaligned prefixes are displayed separately, not treated as matching each other. A downstream alignment with an unaligned prefix has an uncertain 5′ endpoint. Feature states describe ATG sites, not complete uORFs.')
 
-upload=st.file_uploader('Grouped consensus CSV or Excel (.xlsx)',type=['csv','xlsx'])
+input_mode=st.radio('Grouped consensus input', ['Upload a file', 'Use a file on this computer'], horizontal=True)
+upload=None
+frame=None
+if input_mode=='Upload a file':
+    upload=st.file_uploader('Grouped consensus CSV or Excel (.xlsx)',type=['csv','xlsx'])
+else:
+    st.caption('Bypasses the browser upload size limit. In Windows Explorer, right-click your CSV or Excel file and choose Copy as path, then paste it below. Windows paths are converted automatically for Ubuntu/WSL. The file must be on the computer running this app.')
+    path_text=st.text_input('Full path to grouped consensus CSV or Excel',placeholder=r'C:\Users\Siguradottir\Downloads\amplicons.csv')
+    if st.button('Load file from this computer'):
+        st.session_state.pop('dal2_local_input',None)
+        try:
+            if not path_text.strip(): raise ValueError('Paste a file path first.')
+            path=local_path(path_text)
+            if not path.is_file(): raise ValueError('File not found. Use Copy as path on the file itself, not its folder.')
+            with st.spinner('Reading and validating every row…'):
+                loaded=load_consensus(path)
+            st.session_state['dal2_local_input']=(str(path),loaded)
+        except Exception as exc:
+            st.error(f'Cannot load this file: {exc}')
+    saved=st.session_state.get('dal2_local_input')
+    if saved and saved[0]==str(local_path(path_text)):
+        frame=saved[1]
+        st.info(f'{len(frame):,} rows imported from {saved[0]}. Analysis will process EVERY row. Click Load again if you edit the source file.')
 reference_text=st.text_area('Reference DNA or single-record FASTA',value=REFERENCE,height=130)
 with st.expander('Reference annotations — update these if you change the reference'):
     edited=st.data_editor(pd.DataFrame(ANNOTATIONS),num_rows='dynamic',hide_index=True,key='annotations',column_config={'kind':st.column_config.SelectboxColumn(options=['start','primer','region'])})
@@ -31,7 +54,6 @@ identity=a.slider('Minimum aligned sequence identity (%)',50,100,70)/100
 span=b.number_input('Minimum aligned reference span (bp)',20,20000,80)
 context_identity=st.slider('Minimum downstream context identity for start grouping (%)',50,100,80)/100
 st.caption('Grouping checks the next 50 reference bases from each annotated ATG (at least 40 covered bases), plus a 12-base near-start check (at least 10 covered bases and at least 85% identity). A different 5′ prefix is allowed and does not count as an earlier uORF. Weak downstream support and altered well-supported start codons remain separately flagged.')
-frame=None
 if upload:
     try:
         frame=load_consensus(upload.name,upload.getvalue())
@@ -52,7 +74,7 @@ def alignment_inputs():
 
 if st.button('Analyze ALL Excel/CSV rows',type='primary'):
     try:
-        if frame is None: raise ValueError('Upload a grouped consensus table first.')
+        if frame is None: raise ValueError('Upload a grouped consensus table or load a file from this computer first.')
         reference,annotations=alignment_inputs()
         request=dict(kind='dal2',reference=reference,annotations=annotations,trim=trim,identity=identity,span=span,context_identity=context_identity)
         with st.spinner('Saving the complete table and launching background analysis…'):

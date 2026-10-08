@@ -7,9 +7,12 @@ from .io import dna, reverse_complement
 from .dal2 import TSO, TSO_TAIL, FORWARD_PRIMER
 
 
-def load_consensus(name, content):
+def load_consensus(name, content=None):
+    # A filesystem path avoids making an additional in-memory upload copy.
+    source = name if content is None else io.BytesIO(content)
+    name = str(name)
     if name.lower().endswith('.xlsx'):
-        sheets=pd.read_excel(io.BytesIO(content),engine='openpyxl',sheet_name=None)
+        sheets=pd.read_excel(source,engine='openpyxl',sheet_name=None)
         frames=[]
         for sheet_name,sheet in sheets.items():
             if sheet.empty: continue
@@ -21,9 +24,9 @@ def load_consensus(name, content):
             frames.append(sheet)
         frame=pd.concat(frames,ignore_index=True) if frames else pd.DataFrame()
     elif name.lower().endswith('.csv'):
-        frame=pd.read_csv(io.BytesIO(content))
+        frame=pd.read_csv(source)
     else:
-        raise ValueError('Use a CSV or .xlsx workbook (first worksheet).')
+        raise ValueError('Use a CSV or .xlsx workbook (all nonempty worksheets).')
     frame.columns=[str(x).strip() for x in frame.columns]
     missing={'amplicon','consensus_dna'}-set(frame.columns)
     if missing:

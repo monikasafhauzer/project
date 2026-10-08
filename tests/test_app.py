@@ -64,3 +64,22 @@ def test_local_file_mode_runs_and_renders(tmp_path):
     assert result['stats'].input_reads.tolist()==[2]
     assert metadata['local_files']
     assert len(app.dataframe)>=2
+
+
+def test_dal2_local_table_input(tmp_path):
+    from pathlib import Path
+    from nanopore.dal2 import REFERENCE
+    import pandas as pd
+    source=tmp_path/'large report.csv'
+    pd.DataFrame({'amplicon':['a','b'],'consensus_dna':[REFERENCE,REFERENCE]}).to_csv(source,index=False)
+    app=AppTest.from_file(str(Path(__file__).resolve().parents[1]/'pages/1_DAL2_Alignment_Viewer.py')).run(timeout=30)
+    app.radio[0].set_value('Use a file on this computer').run()
+    app.text_input[0].set_value(f'"{source}"').run()
+    next(b for b in app.button if b.label=='Load file from this computer').click().run(timeout=30)
+    assert not app.exception
+    assert len(app.session_state['dal2_local_input'][1])==2
+    assert any('2 rows imported' in info.value for info in app.info)
+    app.text_input[0].set_value(str(tmp_path/'missing.csv')).run()
+    next(b for b in app.button if b.label=='Load file from this computer').click().run()
+    assert 'File not found' in app.error[0].value
+    assert 'dal2_local_input' not in app.session_state
